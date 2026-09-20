@@ -1,7 +1,9 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { supabase } from "@/lib/supabase";
 
 async function JokeList() {
+  await connection();
   const { data: jokes, error } = await supabase
     .from("jokes")
     .select("id, joke, author, created_at")
