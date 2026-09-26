@@ -5,7 +5,6 @@ import { requireUser } from "@/lib/dal";
 
 async function JokeList() {
   await connection();
-  await requireUser();
   const supabase = await createClient();
   const { data: jokes, error } = await supabase
     .from("jokes")
@@ -35,7 +34,9 @@ async function JokeList() {
   );
 }
 
-export default function JokesPage() {
+export default async function JokesPage() {
+  await requireUser();
+
   return (
     <main className="mx-auto max-w-2xl p-8">
       <h1 className="mb-6 text-3xl font-semibold">Jokes</h1>
