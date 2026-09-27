@@ -2,6 +2,7 @@ import "server-only";
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type Profile = {
   id: string;
@@ -20,7 +21,8 @@ export async function getUser() {
 }
 
 export async function getProfile(userId: string): Promise<Profile | null> {
-  const supabase = await createClient();
+  // Service-role read: profiles has no RLS policy yet, see admin.ts.
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from("profiles")
     .select("id, first_name, last_name, avatar_url, email")
