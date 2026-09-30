@@ -18,15 +18,45 @@ export async function updateProfile(formData: FormData) {
   const firstName = String(formData.get("first_name") ?? "").trim();
   const lastName = String(formData.get("last_name") ?? "").trim();
   const redirectTo = String(formData.get("redirect_to") ?? "/profile");
+  const avatar = formData.get("avatar");
 
-  const updates = {
+  const updates: {
+    first_name: string;
+    last_name: string;
+    avatar_url?: string;
+  } = {
     first_name: firstName,
     last_name: lastName,
   };
 
+  const admin = createAdminClient();
+
+  if (avatar instanceof File && avatar.size > 0) {
+    const ext = avatar.name.split(".").pop() || "jpg";
+    const path = `${user.id}/avatar.${ext}`;
+
+    // Service-role upload: bypasses the Storage bucket's RLS policy, see
+    // admin.ts. Path is scoped to the verified session's own user id.
+    const { error: uploadError } = await admin.storage
+      .from("avatars")
+      .upload(path, avatar, { upsert: true, contentType: avatar.type });
+
+    if (uploadError) {
+      throw new Error(`Failed to upload photo: ${uploadError.message}`);
+    }
+
+    const {
+      data: { publicUrl },
+    } = admin.storage.from("avatars").getPublicUrl(path);
+
+    // Cache-bust so the new photo shows immediately even though the path
+    // (and therefore the URL) is the same as before.
+    updates.avatar_url = `${publicUrl}?t=${Date.now()}`;
+  }
+
   // Service-role write: profiles has no RLS policy yet, see admin.ts.
   // user.id comes from the verified session above, never from the client.
-  const { error } = await createAdminClient()
+  const { error } = await admin
     .from("profiles")
     .update(updates)
     .eq("id", user.id);

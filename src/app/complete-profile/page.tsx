@@ -19,6 +19,7 @@ export default async function CompleteProfilePage() {
       <ProfileForm
         defaultFirstName={profile?.first_name ?? ""}
         defaultLastName={profile?.last_name ?? ""}
+        avatarUrl={profile?.avatar_url ?? null}
         redirectTo="/jokes"
         submitLabel="Continue"
       />

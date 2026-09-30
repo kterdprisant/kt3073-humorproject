@@ -7,6 +7,7 @@ import { updateProfile } from "@/app/profile/actions";
 type ProfileFormProps = {
   defaultFirstName: string;
   defaultLastName: string;
+  avatarUrl: string | null;
   redirectTo: string;
   submitLabel?: string;
 };
@@ -25,6 +26,7 @@ async function action(_prevState: unknown, formData: FormData) {
 export function ProfileForm({
   defaultFirstName,
   defaultLastName,
+  avatarUrl,
   redirectTo,
   submitLabel = "Save",
 }: ProfileFormProps) {
@@ -33,6 +35,15 @@ export function ProfileForm({
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="redirect_to" value={redirectTo} />
+
+      {avatarUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={avatarUrl}
+          alt="Your profile photo"
+          className="h-20 w-20 rounded-full object-cover"
+        />
+      )}
 
       <div className="flex flex-col gap-1">
         <label htmlFor="first_name" className="text-sm font-medium">
@@ -58,6 +69,13 @@ export function ProfileForm({
           className="rounded-md border border-gray-300 px-3 py-2"
           required
         />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor="avatar" className="text-sm font-medium">
+          Photo
+        </label>
+        <input id="avatar" name="avatar" type="file" accept="image/*" />
       </div>
 
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}

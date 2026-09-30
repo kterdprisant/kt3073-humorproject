@@ -12,6 +12,7 @@ export default async function ProfilePage() {
       <ProfileForm
         defaultFirstName={profile?.first_name ?? ""}
         defaultLastName={profile?.last_name ?? ""}
+        avatarUrl={profile?.avatar_url ?? null}
         redirectTo="/profile"
       />
       <form action={signOut} className="mt-6">
