@@ -2,15 +2,14 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * Service-role client for privileged, server-only operations: reading/
- * writing a user's own `profiles` row, and uploading their avatar to the
- * `avatars` Storage bucket. `profiles` has RLS enabled with no policies yet
- * (out of scope for this assignment: "do not update/enable/disable any RLS
- * policies"), and the Storage bucket's own RLS policy didn't reliably match
- * real upload requests, so the normal per-request client can't be used for
- * either. The service role key bypasses RLS by privilege level, not by
- * changing any policy — so RLS on `profiles` and the Storage policy both
- * stay exactly as-is.
+ * Service-role client for privileged, server-only operations. `profiles` now
+ * has real RLS policies (`profiles_select_own`/`profiles_update_own`, see the
+ * Assignment #4 migration) and no longer needs this for table reads/writes —
+ * use the normal per-request client (`src/lib/supabase/server.ts`) for those.
+ *
+ * Still used for: uploading to the `avatars` Storage bucket, and as a
+ * documented fallback for `caption-images` uploads if that bucket's RLS
+ * policy reproduces the same unexplained rejection `avatars`' policy had.
  *
  * Because RLS is bypassed here, every call site MUST scope its query/path to
  * the currently authenticated user's own id (from `supabase.auth.getUser()`),

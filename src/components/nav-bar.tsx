@@ -7,17 +7,20 @@ export async function NavBar() {
   const profile = user ? await getProfile(user.id) : null;
 
   return (
-    <nav className="flex items-center justify-between border-b border-gray-200 px-8 py-4">
-      <Link href="/" className="font-semibold">
+    <nav className="sticky top-0 z-10 flex items-center justify-between border-b border-black/5 bg-white/80 px-6 py-3 backdrop-blur">
+      <Link href="/" className="font-semibold tracking-tight">
         Humor Project
       </Link>
-      <div className="flex items-center gap-4 text-sm">
+      <div className="flex items-center gap-5 text-sm text-gray-700">
         {user ? (
           <>
-            <Link href="/jokes" className="underline">
-              Jokes
+            <Link href="/captions" className="hover:text-black">
+              Feed
             </Link>
-            <Link href="/profile" className="flex items-center gap-2 underline">
+            <Link href="/dashboard" className="hover:text-black">
+              Dashboard
+            </Link>
+            <Link href="/profile" className="flex items-center gap-2 hover:text-black">
               {profile?.avatar_url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -29,13 +32,13 @@ export async function NavBar() {
               Profile
             </Link>
             <form action={signOut}>
-              <button type="submit" className="text-gray-500 underline">
+              <button type="submit" className="text-gray-400 hover:text-black">
                 Sign out
               </button>
             </form>
           </>
         ) : (
-          <Link href="/login" className="underline">
+          <Link href="/login" className="hover:text-black">
             Log in
           </Link>
         )}

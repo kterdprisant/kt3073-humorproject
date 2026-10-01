@@ -75,7 +75,13 @@ export function ProfileForm({
         <label htmlFor="avatar" className="text-sm font-medium">
           Photo
         </label>
-        <input id="avatar" name="avatar" type="file" accept="image/*" />
+        <input
+          id="avatar"
+          name="avatar"
+          type="file"
+          accept="image/*"
+          className="text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-black file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-gray-800"
+        />
       </div>
 
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}

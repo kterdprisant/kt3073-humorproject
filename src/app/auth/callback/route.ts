@@ -31,5 +31,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/jokes`);
+  return NextResponse.redirect(`${origin}/captions`);
 }

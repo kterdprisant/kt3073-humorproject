@@ -54,9 +54,9 @@ export async function updateProfile(formData: FormData) {
     updates.avatar_url = `${publicUrl}?t=${Date.now()}`;
   }
 
-  // Service-role write: profiles has no RLS policy yet, see admin.ts.
-  // user.id comes from the verified session above, never from the client.
-  const { error } = await admin
+  // RLS-enforced write: profiles_update_own requires auth.uid() = id, which
+  // is exactly what stops a forged id here — not application code.
+  const { error } = await supabase
     .from("profiles")
     .update(updates)
     .eq("id", user.id);

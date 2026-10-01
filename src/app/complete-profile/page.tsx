@@ -7,7 +7,7 @@ export default async function CompleteProfilePage() {
   const profile = await getProfile(user.id);
 
   if (isProfileComplete(profile)) {
-    redirect("/jokes");
+    redirect("/captions");
   }
 
   return (
@@ -20,7 +20,7 @@ export default async function CompleteProfilePage() {
         defaultFirstName={profile?.first_name ?? ""}
         defaultLastName={profile?.last_name ?? ""}
         avatarUrl={profile?.avatar_url ?? null}
-        redirectTo="/jokes"
+        redirectTo="/captions"
         submitLabel="Continue"
       />
     </main>
