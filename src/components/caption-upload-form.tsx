@@ -1,23 +1,15 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { unstable_rethrow } from "next/navigation";
 import { uploadImageAndGenerateCaption } from "@/app/captions/actions";
 
 const STAGES = ["Looking at your photo…", "Writing something funny…"];
 
-async function action(_prevState: unknown, formData: FormData) {
-  try {
-    await uploadImageAndGenerateCaption(formData);
-    return { error: null };
-  } catch (err) {
-    unstable_rethrow(err);
-    return { error: err instanceof Error ? err.message : "Something went wrong." };
-  }
-}
-
 export function CaptionUploadForm() {
-  const [state, formAction, pending] = useActionState(action, { error: null });
+  const [state, formAction, pending] = useActionState(
+    uploadImageAndGenerateCaption,
+    { error: null },
+  );
   const [preview, setPreview] = useState<string | null>(null);
   const [stage, setStage] = useState(0);
   const [manual, setManual] = useState(false);

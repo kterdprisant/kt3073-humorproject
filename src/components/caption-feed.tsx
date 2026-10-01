@@ -29,12 +29,11 @@ function FeedItem({ caption }: { caption: Caption }) {
     setError(null);
 
     startTransition(async () => {
-      try {
-        await submitVote(caption.id, value);
-      } catch (err) {
+      const result = await submitVote(caption.id, value);
+      if (result.error) {
         setMyVote(prevVote);
         setTally(prevTally);
-        setError(err instanceof Error ? err.message : "Failed to save your vote.");
+        setError(result.error);
       }
     });
   };

@@ -5,7 +5,15 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function updateProfile(formData: FormData) {
+export type ActionState = { error: string | null };
+
+// Expected failures are returned as { error } rather than thrown — Next.js
+// redacts thrown Server Function errors to a generic message in production
+// builds. See src/app/captions/actions.ts for the longer explanation.
+export async function updateProfile(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -42,7 +50,7 @@ export async function updateProfile(formData: FormData) {
       .upload(path, avatar, { upsert: true, contentType: avatar.type });
 
     if (uploadError) {
-      throw new Error(`Failed to upload photo: ${uploadError.message}`);
+      return { error: `Failed to upload photo: ${uploadError.message}` };
     }
 
     const {
@@ -62,7 +70,7 @@ export async function updateProfile(formData: FormData) {
     .eq("id", user.id);
 
   if (error) {
-    throw new Error(`Failed to update profile: ${error.message}`);
+    return { error: `Failed to update profile: ${error.message}` };
   }
 
   revalidatePath("/profile");

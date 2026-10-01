@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState } from "react";
-import { unstable_rethrow } from "next/navigation";
 import { updateProfile } from "@/app/profile/actions";
 
 type ProfileFormProps = {
@@ -12,17 +11,6 @@ type ProfileFormProps = {
   submitLabel?: string;
 };
 
-async function action(_prevState: unknown, formData: FormData) {
-  try {
-    await updateProfile(formData);
-    return { error: null };
-  } catch (err) {
-    // redirect() throws internally on success; let that propagate.
-    unstable_rethrow(err);
-    return { error: err instanceof Error ? err.message : "Something went wrong." };
-  }
-}
-
 export function ProfileForm({
   defaultFirstName,
   defaultLastName,
@@ -30,7 +18,9 @@ export function ProfileForm({
   redirectTo,
   submitLabel = "Save",
 }: ProfileFormProps) {
-  const [state, formAction, pending] = useActionState(action, { error: null });
+  const [state, formAction, pending] = useActionState(updateProfile, {
+    error: null,
+  });
 
   return (
     <form action={formAction} className="flex flex-col gap-4">

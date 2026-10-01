@@ -8,6 +8,8 @@ import { createGeminiClient, GEMINI_MODEL } from "@/lib/gemini";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB
 
+export type ActionState = { error: string | null };
+
 // No auto-retry: the free Gemini tier is capped at 5 requests/minute, and
 // each upload already makes 2 calls — retrying would burn through that
 // quota fast and make rate-limit errors more likely, not less. Surface a
@@ -23,7 +25,16 @@ function describeGeminiError(err: unknown): string {
   return message;
 }
 
-export async function uploadImageAndGenerateCaption(formData: FormData) {
+// Expected failures are returned as { error } rather than thrown: Next.js
+// redacts thrown Server Function errors to a generic message in production
+// builds (dev mode shows the real one, which is why this only ever surfaced
+// after deploying) — see node_modules/next/dist/docs/01-app/01-getting-started/10-error-handling.md,
+// "avoid using try/catch blocks and throw errors [for expected errors].
+// Instead, model expected errors as return values."
+export async function uploadImageAndGenerateCaption(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -35,13 +46,13 @@ export async function uploadImageAndGenerateCaption(formData: FormData) {
 
   const image = formData.get("image");
   if (!(image instanceof File) || image.size === 0) {
-    throw new Error("Please choose an image to upload.");
+    return { error: "Please choose an image to upload." };
   }
   if (!image.type.startsWith("image/")) {
-    throw new Error("That file doesn't look like an image.");
+    return { error: "That file doesn't look like an image." };
   }
   if (image.size > MAX_IMAGE_BYTES) {
-    throw new Error("Image is too large (8MB max).");
+    return { error: "Image is too large (8MB max)." };
   }
 
   const manualCaption = String(formData.get("manual_caption") ?? "").trim();
@@ -72,7 +83,7 @@ export async function uploadImageAndGenerateCaption(formData: FormData) {
   }
 
   if (uploadError) {
-    throw new Error(`Failed to upload image: ${uploadError.message}`);
+    return { error: `Failed to upload image: ${uploadError.message}` };
   }
 
   const {
@@ -133,7 +144,7 @@ export async function uploadImageAndGenerateCaption(formData: FormData) {
     } catch (err) {
       // Don't leave an orphaned upload if caption generation fails.
       await storageClient.storage.from("caption-images").remove([path]);
-      throw new Error(`Failed to generate a caption: ${describeGeminiError(err)}`);
+      return { error: `Failed to generate a caption: ${describeGeminiError(err)}` };
     }
   }
 
@@ -147,14 +158,17 @@ export async function uploadImageAndGenerateCaption(formData: FormData) {
 
   if (insertError) {
     await storageClient.storage.from("caption-images").remove([path]);
-    throw new Error(`Failed to save caption: ${insertError.message}`);
+    return { error: `Failed to save caption: ${insertError.message}` };
   }
 
   revalidatePath("/captions");
   redirect("/captions");
 }
 
-export async function submitVote(captionId: string, value: 1 | -1) {
+export async function submitVote(
+  captionId: string,
+  value: 1 | -1,
+): Promise<ActionState> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -165,7 +179,7 @@ export async function submitVote(captionId: string, value: 1 | -1) {
   }
 
   if (value !== 1 && value !== -1) {
-    throw new Error("Invalid vote value.");
+    return { error: "Invalid vote value." };
   }
 
   // RLS-enforced upsert: votes_insert_own / votes_update_own both require
@@ -182,8 +196,9 @@ export async function submitVote(captionId: string, value: 1 | -1) {
   );
 
   if (error) {
-    throw new Error(`Failed to save vote: ${error.message}`);
+    return { error: `Failed to save vote: ${error.message}` };
   }
 
   revalidatePath("/captions");
+  return { error: null };
 }
