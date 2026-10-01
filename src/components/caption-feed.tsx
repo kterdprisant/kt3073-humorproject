@@ -50,7 +50,7 @@ function FeedItem({ caption }: { caption: Caption }) {
         />
       </div>
       <div className="flex items-center justify-between gap-4 p-4">
-        <p className="text-base font-medium">{caption.caption_text}</p>
+        <p className="min-w-0 flex-1 text-xl font-medium">{caption.caption_text}</p>
         <div className="flex shrink-0 gap-2">
           <button
             type="button"

@@ -19,7 +19,7 @@ export function CaptionThumb({ caption }: { caption: Caption }) {
         )}
       </div>
       <div className="p-3">
-        <p className="line-clamp-2 text-sm font-medium">{caption.caption_text}</p>
+        <p className="line-clamp-2 text-base font-medium">{caption.caption_text}</p>
         <p className="mt-1 text-xs text-gray-500">
           {caption.tally.upvotes} up · {caption.tally.downvotes} down
         </p>
