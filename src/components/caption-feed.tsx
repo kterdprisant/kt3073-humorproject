@@ -39,8 +39,8 @@ function FeedItem({ caption }: { caption: Caption }) {
   };
 
   return (
-    <article className="overflow-hidden rounded-3xl border border-black/5 bg-white shadow-sm">
-      <div className="relative aspect-[4/5] w-full bg-gray-100">
+    <article className="overflow-hidden rounded-3xl bg-gray-100 shadow-sm">
+      <div className="relative aspect-[4/5] w-full">
         <Image
           src={caption.image_url}
           alt=""
@@ -48,39 +48,41 @@ function FeedItem({ caption }: { caption: Caption }) {
           sizes="(max-width: 640px) 100vw, 480px"
           className="object-cover"
         />
-      </div>
-      <div className="flex items-center justify-between gap-4 p-4">
-        <p className="min-w-0 flex-1 text-xl font-medium">{caption.caption_text}</p>
-        <div className="flex shrink-0 gap-2">
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => vote(1)}
-            aria-pressed={myVote === 1}
-            className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
-              myVote === 1
-                ? "bg-black text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            👍 {tally.upvotes}
-          </button>
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => vote(-1)}
-            aria-pressed={myVote === -1}
-            className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
-              myVote === -1
-                ? "bg-black text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            👎 {tally.downvotes}
-          </button>
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent p-4 pt-16">
+          <p className="text-xl font-medium text-white drop-shadow-sm">
+            {caption.caption_text}
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => vote(1)}
+              aria-pressed={myVote === 1}
+              className={`rounded-full px-3 py-1.5 text-sm backdrop-blur-sm transition-colors ${
+                myVote === 1
+                  ? "bg-white text-black"
+                  : "bg-white/20 text-white hover:bg-white/30"
+              }`}
+            >
+              👍 {tally.upvotes}
+            </button>
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => vote(-1)}
+              aria-pressed={myVote === -1}
+              className={`rounded-full px-3 py-1.5 text-sm backdrop-blur-sm transition-colors ${
+                myVote === -1
+                  ? "bg-white text-black"
+                  : "bg-white/20 text-white hover:bg-white/30"
+              }`}
+            >
+              👎 {tally.downvotes}
+            </button>
+          </div>
         </div>
       </div>
-      {error && <p className="px-4 pb-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="px-4 py-2 text-sm text-red-600">{error}</p>}
     </article>
   );
 }
