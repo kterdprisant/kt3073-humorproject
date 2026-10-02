@@ -34,18 +34,65 @@ async function attachVotesAndTallies(
   }));
 }
 
-/** The main feed: every caption, newest first. */
+/** The main feed: every caption, newest first — excludes Image of the Day
+ * submissions, which get their own showcase section instead. */
 export async function getFeedCaptions(userId: string): Promise<Caption[]> {
   const supabase = await createClient();
   const { data: captions } = await supabase
     .from("captions")
     .select("id, image_url, caption_text, user_id, created_at")
+    .is("iotd_date", null)
     .order("created_at", { ascending: false });
   return attachVotesAndTallies(userId, (captions ?? []) as CaptionRow[]);
 }
 
-/** Captions a user has uploaded, newest first. */
-export async function getUploadedCaptions(userId: string): Promise<Caption[]> {
+export type ImageOfTheDay = {
+  day: string;
+  imageUrl: string;
+  submissions: Caption[];
+  hasSubmitted: boolean;
+};
+
+/** Today's picked image plus the leaderboard of captions submitted for it,
+ * sorted by score (net upvotes) descending. */
+export async function getImageOfTheDay(userId: string): Promise<ImageOfTheDay | null> {
+  const supabase = await createClient();
+  const { data: iotdRows, error: iotdError } = await supabase.rpc(
+    "get_or_create_image_of_the_day",
+  );
+  if (iotdError) {
+    console.error("get_or_create_image_of_the_day failed:", iotdError.message);
+    return null;
+  }
+  const iotd = iotdRows?.[0] as
+    | { pick_date: string; image_url: string; image_description: string }
+    | undefined;
+  // If no captions exist yet at all, nothing gets inserted and the function
+  // returns zero rows.
+  if (!iotd?.image_url) return null;
+
+  const { data: submissionsRaw } = await supabase
+    .from("captions")
+    .select("id, image_url, caption_text, user_id, created_at")
+    .eq("iotd_date", iotd.pick_date)
+    .order("created_at", { ascending: false });
+
+  const submissions = await attachVotesAndTallies(
+    userId,
+    (submissionsRaw ?? []) as CaptionRow[],
+  );
+  submissions.sort((a, b) => b.tally.score - a.tally.score);
+
+  return {
+    day: iotd.pick_date,
+    imageUrl: iotd.image_url,
+    submissions,
+    hasSubmitted: submissions.some((c) => c.user_id === userId),
+  };
+}
+
+/** Captions a user created, newest first — includes original uploads and remixes (regenerated captions on others' photos). */
+export async function getCreatedCaptions(userId: string): Promise<Caption[]> {
   const supabase = await createClient();
   const { data: captions } = await supabase
     .from("captions")

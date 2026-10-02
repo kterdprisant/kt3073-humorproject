@@ -2,13 +2,20 @@
 
 import { useState, useTransition } from "react";
 import Image from "next/image";
-import { submitVote } from "@/app/captions/actions";
+import { submitVote, regenerateCaption } from "@/app/captions/actions";
 import type { Caption } from "@/lib/captions";
 
-function FeedItem({ caption }: { caption: Caption }) {
+function FeedItem({
+  caption,
+  onRegenerated,
+}: {
+  caption: Caption;
+  onRegenerated: (caption: Caption) => void;
+}) {
   const [myVote, setMyVote] = useState(caption.myVote);
   const [tally, setTally] = useState(caption.tally);
   const [isPending, startTransition] = useTransition();
+  const [isRegenerating, startRegenerate] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const vote = (value: 1 | -1) => {
@@ -38,6 +45,18 @@ function FeedItem({ caption }: { caption: Caption }) {
     });
   };
 
+  const regenerate = () => {
+    setError(null);
+    startRegenerate(async () => {
+      const result = await regenerateCaption(caption.id);
+      if (result.error) {
+        setError(result.error);
+      } else if (result.caption) {
+        onRegenerated(result.caption);
+      }
+    });
+  };
+
   return (
     <article className="overflow-hidden rounded-3xl bg-gray-100 shadow-sm">
       <div className="relative aspect-[4/5] w-full">
@@ -52,7 +71,7 @@ function FeedItem({ caption }: { caption: Caption }) {
           <p className="text-xl font-medium text-white drop-shadow-sm">
             {caption.caption_text}
           </p>
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex items-center gap-2">
             <button
               type="button"
               disabled={isPending}
@@ -79,6 +98,15 @@ function FeedItem({ caption }: { caption: Caption }) {
             >
               👎 {tally.downvotes}
             </button>
+            <button
+              type="button"
+              disabled={isRegenerating}
+              onClick={regenerate}
+              title="Generate a different caption for this photo"
+              className="ml-auto rounded-full bg-white/20 px-3 py-1.5 text-sm text-white backdrop-blur-sm transition-colors hover:bg-white/30 disabled:opacity-50"
+            >
+              {isRegenerating ? "Writing…" : "🎲 New caption"}
+            </button>
           </div>
         </div>
       </div>
@@ -88,7 +116,13 @@ function FeedItem({ caption }: { caption: Caption }) {
 }
 
 export function CaptionFeed({ captions }: { captions: Caption[] }) {
-  if (captions.length === 0) {
+  const [items, setItems] = useState(captions);
+
+  const handleRegenerated = (newCaption: Caption) => {
+    setItems((current) => [newCaption, ...current]);
+  };
+
+  if (items.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-gray-300 p-12 text-center text-gray-500">
         No captions yet — be the first to upload one.
@@ -98,8 +132,12 @@ export function CaptionFeed({ captions }: { captions: Caption[] }) {
 
   return (
     <div className="flex flex-col gap-6">
-      {captions.map((caption) => (
-        <FeedItem key={caption.id} caption={caption} />
+      {items.map((caption) => (
+        <FeedItem
+          key={caption.id}
+          caption={caption}
+          onRegenerated={handleRegenerated}
+        />
       ))}
     </div>
   );

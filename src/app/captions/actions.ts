@@ -5,10 +5,15 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createGeminiClient, GEMINI_MODEL } from "@/lib/gemini";
+import type { Caption } from "@/lib/captions";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB
 
 export type ActionState = { error: string | null };
+
+function captionPrompt(description: string) {
+  return `Here is a description of an image: "${description}"\n\nWrite one short, funny caption for this image, in the style of a witty meme caption. Return only the caption text, nothing else — no quotes, no preamble.`;
+}
 
 // No auto-retry: the free Gemini tier is capped at 5 requests/minute, and
 // each upload already makes 2 calls — retrying would burn through that
@@ -127,14 +132,7 @@ export async function uploadImageAndGenerateCaption(
       const captionResponse = await gemini.models.generateContent({
         model: GEMINI_MODEL,
         contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: `Here is a description of an image: "${imageDescription}"\n\nWrite one short, funny caption for this image, in the style of a witty meme caption. Return only the caption text, nothing else — no quotes, no preamble.`,
-              },
-            ],
-          },
+          { role: "user", parts: [{ text: captionPrompt(imageDescription) }] },
         ],
       });
       captionText = (captionResponse.text ?? "").trim();
@@ -201,4 +199,169 @@ export async function submitVote(
 
   revalidatePath("/captions");
   return { error: null };
+}
+
+export async function regenerateCaption(
+  sourceCaptionId: string,
+): Promise<ActionState & { caption?: Caption }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  // Readable by any authenticated user per captions_select_authenticated —
+  // remixing someone else's photo is allowed by design (more content for
+  // the feed, see src/app/dashboard/page.tsx's "Your captions" section).
+  const { data: source, error: sourceError } = await supabase
+    .from("captions")
+    .select("image_url, image_description")
+    .eq("id", sourceCaptionId)
+    .single();
+
+  if (sourceError || !source) {
+    return { error: "Couldn't find that image anymore." };
+  }
+
+  // Reuse the stored description instead of re-sending the image — the
+  // whole point of keeping image_description around: only the cheap
+  // text-only call runs here, not the vision step.
+  const gemini = createGeminiClient();
+  let captionText: string;
+  try {
+    const captionResponse = await gemini.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: captionPrompt(source.image_description) }],
+        },
+      ],
+    });
+    captionText = (captionResponse.text ?? "").trim();
+    if (!captionText) {
+      throw new Error("Gemini returned an empty caption.");
+    }
+  } catch (err) {
+    return { error: `Failed to generate a caption: ${describeGeminiError(err)}` };
+  }
+
+  // RLS-enforced insert: captions_insert_own requires auth.uid() = user_id.
+  const { data: inserted, error: insertError } = await supabase
+    .from("captions")
+    .insert({
+      user_id: user.id,
+      image_url: source.image_url,
+      image_description: source.image_description,
+      caption_text: captionText,
+    })
+    .select("id, image_url, caption_text, user_id, created_at")
+    .single();
+
+  if (insertError || !inserted) {
+    return { error: `Failed to save caption: ${insertError?.message}` };
+  }
+
+  revalidatePath("/captions");
+  revalidatePath("/dashboard");
+
+  return {
+    error: null,
+    caption: {
+      ...inserted,
+      tally: { upvotes: 0, downvotes: 0, score: 0 },
+      myVote: null,
+    },
+  };
+}
+
+export async function generateImageOfTheDayCaption(): Promise<
+  ActionState & { caption?: Caption }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: iotdRows, error: iotdError } = await supabase.rpc(
+    "get_or_create_image_of_the_day",
+  );
+  const iotd = iotdRows?.[0] as
+    | { pick_date: string; image_url: string; image_description: string }
+    | undefined;
+
+  // If no captions exist yet at all, nothing gets inserted and the function
+  // returns zero rows.
+  if (iotdError || !iotd?.image_url) {
+    return { error: "Couldn't load today's image." };
+  }
+
+  // Check before spending a Gemini call — the partial unique index on
+  // captions(iotd_date, user_id) is the real enforcement, this is just to
+  // avoid wasting quota on a submission that would be rejected anyway.
+  const { data: existing } = await supabase
+    .from("captions")
+    .select("id")
+    .eq("iotd_date", iotd.pick_date)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (existing) {
+    return { error: "You've already submitted a caption for today's image." };
+  }
+
+  const gemini = createGeminiClient();
+  let captionText: string;
+  try {
+    const captionResponse = await gemini.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [
+        { role: "user", parts: [{ text: captionPrompt(iotd.image_description) }] },
+      ],
+    });
+    captionText = (captionResponse.text ?? "").trim();
+    if (!captionText) {
+      throw new Error("Gemini returned an empty caption.");
+    }
+  } catch (err) {
+    return { error: `Failed to generate a caption: ${describeGeminiError(err)}` };
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("captions")
+    .insert({
+      user_id: user.id,
+      image_url: iotd.image_url,
+      image_description: iotd.image_description,
+      caption_text: captionText,
+      iotd_date: iotd.pick_date,
+    })
+    .select("id, image_url, caption_text, user_id, created_at")
+    .single();
+
+  if (insertError || !inserted) {
+    // Most likely cause: the unique index caught a same-user double submit
+    // (e.g. two tabs) that slipped past the check above.
+    return {
+      error: "Failed to save your caption — you may have already submitted one today.",
+    };
+  }
+
+  revalidatePath("/captions");
+
+  return {
+    error: null,
+    caption: {
+      ...inserted,
+      tally: { upvotes: 0, downvotes: 0, score: 0 },
+      myVote: null,
+    },
+  };
 }

@@ -1,12 +1,12 @@
 import { requireUser } from "@/lib/dal";
-import { getUploadedCaptions, getVotedCaptions } from "@/lib/get-captions";
+import { getCreatedCaptions, getVotedCaptions } from "@/lib/get-captions";
 import { CaptionThumb } from "@/components/caption-thumb";
 import { UploadFab } from "@/components/upload-fab";
 
 export default async function DashboardPage() {
   const user = await requireUser();
   const [uploads, voted] = await Promise.all([
-    getUploadedCaptions(user.id),
+    getCreatedCaptions(user.id),
     getVotedCaptions(user.id),
   ]);
 
@@ -16,10 +16,10 @@ export default async function DashboardPage() {
 
       <section className="mb-10">
         <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-gray-500">
-          Your uploads
+          Your captions
         </h2>
         {uploads.length === 0 ? (
-          <p className="text-gray-500">You haven&apos;t uploaded anything yet.</p>
+          <p className="text-gray-500">You haven&apos;t created anything yet.</p>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {uploads.map((caption) => (
