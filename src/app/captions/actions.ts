@@ -163,9 +163,11 @@ export async function uploadImageAndGenerateCaption(
   redirect("/captions");
 }
 
+// value is null to remove an existing vote entirely (click the same button
+// again), or 1 | -1 to cast/change it.
 export async function submitVote(
   captionId: string,
-  value: 1 | -1,
+  value: 1 | -1 | null,
 ): Promise<ActionState> {
   const supabase = await createClient();
   const {
@@ -176,25 +178,37 @@ export async function submitVote(
     redirect("/login");
   }
 
-  if (value !== 1 && value !== -1) {
+  if (value !== 1 && value !== -1 && value !== null) {
     return { error: "Invalid vote value." };
   }
 
-  // RLS-enforced upsert: votes_insert_own / votes_update_own both require
-  // auth.uid() = user_id, so a forged user_id is rejected by Postgres, not
-  // by this code.
-  const { error } = await supabase.from("votes").upsert(
-    {
-      caption_id: captionId,
-      user_id: user.id,
-      value,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "caption_id,user_id" },
-  );
+  // RLS-enforced: votes_insert_own / votes_update_own / votes_delete_own all
+  // require auth.uid() = user_id, so a forged user_id is rejected by
+  // Postgres, not by this code.
+  if (value === null) {
+    const { error } = await supabase
+      .from("votes")
+      .delete()
+      .eq("caption_id", captionId)
+      .eq("user_id", user.id);
 
-  if (error) {
-    return { error: `Failed to save vote: ${error.message}` };
+    if (error) {
+      return { error: `Failed to remove your vote: ${error.message}` };
+    }
+  } else {
+    const { error } = await supabase.from("votes").upsert(
+      {
+        caption_id: captionId,
+        user_id: user.id,
+        value,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "caption_id,user_id" },
+    );
+
+    if (error) {
+      return { error: `Failed to save vote: ${error.message}` };
+    }
   }
 
   revalidatePath("/captions");

@@ -15,20 +15,22 @@ function LeaderboardRow({ caption, rank }: { caption: Caption; rank: number }) {
   const [error, setError] = useState<string | null>(null);
 
   const vote = (value: 1 | -1) => {
-    if (myVote === value) return;
+    // Clicking the already-active vote removes it entirely.
+    const newValue = myVote === value ? null : value;
 
     const prevVote = myVote;
     const prevTally = tally;
-    setMyVote(value);
+    setMyVote(newValue);
     setTally((t) => ({
-      upvotes: t.upvotes + (value === 1 ? 1 : 0) - (prevVote === 1 ? 1 : 0),
-      downvotes: t.downvotes + (value === -1 ? 1 : 0) - (prevVote === -1 ? 1 : 0),
-      score: t.score + (value - (prevVote ?? 0)),
+      upvotes: t.upvotes + (newValue === 1 ? 1 : 0) - (prevVote === 1 ? 1 : 0),
+      downvotes:
+        t.downvotes + (newValue === -1 ? 1 : 0) - (prevVote === -1 ? 1 : 0),
+      score: t.score + ((newValue ?? 0) - (prevVote ?? 0)),
     }));
     setError(null);
 
     startTransition(async () => {
-      const result = await submitVote(caption.id, value);
+      const result = await submitVote(caption.id, newValue);
       if (result.error) {
         setMyVote(prevVote);
         setTally(prevTally);
