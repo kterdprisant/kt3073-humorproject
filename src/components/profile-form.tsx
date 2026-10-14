@@ -36,33 +36,33 @@ export function ProfileForm({
       )}
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="first_name" className="text-sm font-medium">
+        <label htmlFor="first_name" className="text-sm font-medium text-neutral-200">
           First name
         </label>
         <input
           id="first_name"
           name="first_name"
           defaultValue={defaultFirstName}
-          className="rounded-md border border-gray-300 px-3 py-2"
+          className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100"
           required
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="last_name" className="text-sm font-medium">
+        <label htmlFor="last_name" className="text-sm font-medium text-neutral-200">
           Last name
         </label>
         <input
           id="last_name"
           name="last_name"
           defaultValue={defaultLastName}
-          className="rounded-md border border-gray-300 px-3 py-2"
+          className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100"
           required
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="avatar" className="text-sm font-medium">
+        <label htmlFor="avatar" className="text-sm font-medium text-neutral-200">
           Photo
         </label>
         <input
@@ -70,16 +70,16 @@ export function ProfileForm({
           name="avatar"
           type="file"
           accept="image/*"
-          className="text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-black file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-gray-800"
+          className="text-sm text-neutral-400 file:mr-3 file:rounded-md file:border-0 file:bg-amber-400 file:px-4 file:py-2 file:text-sm file:font-medium file:text-neutral-950 hover:file:bg-amber-300"
         />
       </div>
 
-      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
+      {state.error && <p className="text-sm text-red-400">{state.error}</p>}
 
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-black px-4 py-2 font-medium text-white disabled:opacity-50"
+        className="rounded-md bg-amber-400 px-4 py-2 font-medium text-neutral-950 transition-colors hover:bg-amber-300 disabled:opacity-50"
       >
         {pending ? "Saving…" : submitLabel}
       </button>

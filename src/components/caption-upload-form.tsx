@@ -31,7 +31,7 @@ export function CaptionUploadForm() {
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <label htmlFor="image" className="text-sm font-medium">
+        <label htmlFor="image" className="text-sm font-medium text-neutral-200">
           Photo
         </label>
         <input
@@ -44,7 +44,7 @@ export function CaptionUploadForm() {
             const file = e.target.files?.[0];
             setPreview(file ? URL.createObjectURL(file) : null);
           }}
-          className="text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-black file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-gray-800"
+          className="text-sm text-neutral-400 file:mr-3 file:rounded-md file:border-0 file:bg-amber-400 file:px-4 file:py-2 file:text-sm file:font-medium file:text-neutral-950 hover:file:bg-amber-300"
         />
       </div>
 
@@ -61,20 +61,20 @@ export function CaptionUploadForm() {
         <button
           type="button"
           onClick={() => setManual(true)}
-          className="self-start text-sm text-gray-500 underline"
+          className="self-start text-sm text-neutral-500 underline"
         >
           Gemini not working? Write your own caption instead
         </button>
       ) : (
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between">
-            <label htmlFor="manual_caption" className="text-sm font-medium">
+            <label htmlFor="manual_caption" className="text-sm font-medium text-neutral-200">
               Your caption
             </label>
             <button
               type="button"
               onClick={() => setManual(false)}
-              className="text-sm text-gray-500 underline"
+              className="text-sm text-neutral-500 underline"
             >
               Use AI instead
             </button>
@@ -84,17 +84,17 @@ export function CaptionUploadForm() {
             name="manual_caption"
             type="text"
             placeholder="Write a funny caption…"
-            className="rounded-md border border-gray-300 px-3 py-2"
+            className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 placeholder:text-neutral-500"
           />
         </div>
       )}
 
-      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
+      {state.error && <p className="text-sm text-red-400">{state.error}</p>}
 
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-black px-4 py-2 font-medium text-white disabled:opacity-50"
+        className="rounded-md bg-amber-400 px-4 py-2 font-medium text-neutral-950 transition-colors hover:bg-amber-300 disabled:opacity-50"
       >
         {pending
           ? manual
@@ -102,7 +102,7 @@ export function CaptionUploadForm() {
             : STAGES[stage]
           : manual
             ? "Save caption"
-            : "Generate caption"}
+            : "🎤 Take the mic"}
       </button>
     </form>
   );

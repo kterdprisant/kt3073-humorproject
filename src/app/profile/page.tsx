@@ -8,7 +8,7 @@ export default async function ProfilePage() {
 
   return (
     <main className="mx-auto max-w-md p-8">
-      <h1 className="mb-6 text-3xl font-semibold">Profile</h1>
+      <h1 className="mb-6 text-3xl font-semibold text-neutral-100">Profile</h1>
       <ProfileForm
         defaultFirstName={profile?.first_name ?? ""}
         defaultLastName={profile?.last_name ?? ""}
@@ -16,7 +16,7 @@ export default async function ProfilePage() {
         redirectTo="/profile"
       />
       <form action={signOut} className="mt-6">
-        <button type="submit" className="text-sm text-gray-500 underline">
+        <button type="submit" className="text-sm text-neutral-500 underline">
           Sign out
         </button>
       </form>

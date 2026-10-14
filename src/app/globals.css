@@ -1,1 +1,44 @@
 @import "tailwindcss";
+
+body {
+  background-color: #0a0a0a;
+}
+
+@keyframes neon-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.8));
+  }
+  50% {
+    opacity: 0.85;
+    filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.5));
+  }
+}
+
+.neon-wordmark {
+  animation: neon-pulse 3.5s ease-in-out infinite;
+}
+
+@keyframes bulb-chase {
+  0%,
+  20% {
+    opacity: 1;
+    filter: brightness(1.6) drop-shadow(0 0 4px rgba(255, 221, 130, 0.9));
+  }
+  60%,
+  100% {
+    opacity: 0.35;
+    filter: brightness(0.7);
+  }
+}
+
+@keyframes star-twinkle {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}

@@ -264,6 +264,8 @@ export async function regenerateCaption(
   }
 
   // RLS-enforced insert: captions_insert_own requires auth.uid() = user_id.
+  // regenerated_from_id links this Encore back to the caption it replaced,
+  // so the "Ratio'd" secret achievement can later compare their scores.
   const { data: inserted, error: insertError } = await supabase
     .from("captions")
     .insert({
@@ -271,6 +273,7 @@ export async function regenerateCaption(
       image_url: source.image_url,
       image_description: source.image_description,
       caption_text: captionText,
+      regenerated_from_id: sourceCaptionId,
     })
     .select("id, image_url, caption_text, user_id, created_at")
     .single();

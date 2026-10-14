@@ -6,9 +6,9 @@ export default async function CaptionUploadPage() {
 
   return (
     <main className="mx-auto max-w-md p-8">
-      <h1 className="mb-2 text-3xl font-semibold">Upload a photo</h1>
-      <p className="mb-6 text-gray-600">
-        We&apos;ll describe it and write a funny caption automatically.
+      <h1 className="mb-2 text-3xl font-semibold text-neutral-100">Take the Mic</h1>
+      <p className="mb-6 text-neutral-400">
+        We&apos;ll describe your photo and write a funny caption automatically.
       </p>
       <CaptionUploadForm />
     </main>

@@ -2,78 +2,25 @@
 
 import { useState, useTransition } from "react";
 import Image from "next/image";
-import {
-  submitVote,
-  generateImageOfTheDayCaption,
-} from "@/app/captions/actions";
+import { generateImageOfTheDayCaption } from "@/app/captions/actions";
+import { VoteButtons } from "@/components/vote-buttons";
 import type { Caption } from "@/lib/captions";
 
 function LeaderboardRow({ caption, rank }: { caption: Caption; rank: number }) {
-  const [myVote, setMyVote] = useState(caption.myVote);
-  const [tally, setTally] = useState(caption.tally);
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  const vote = (value: 1 | -1) => {
-    // Clicking the already-active vote removes it entirely.
-    const newValue = myVote === value ? null : value;
-
-    const prevVote = myVote;
-    const prevTally = tally;
-    setMyVote(newValue);
-    setTally((t) => ({
-      upvotes: t.upvotes + (newValue === 1 ? 1 : 0) - (prevVote === 1 ? 1 : 0),
-      downvotes:
-        t.downvotes + (newValue === -1 ? 1 : 0) - (prevVote === -1 ? 1 : 0),
-      score: t.score + ((newValue ?? 0) - (prevVote ?? 0)),
-    }));
-    setError(null);
-
-    startTransition(async () => {
-      const result = await submitVote(caption.id, newValue);
-      if (result.error) {
-        setMyVote(prevVote);
-        setTally(prevTally);
-        setError(result.error);
-      }
-    });
-  };
-
   return (
-    <li className="flex items-center gap-3 border-b border-gray-100 py-3 last:border-0">
-      <span className="w-5 shrink-0 text-right text-sm font-medium text-gray-400">
+    <li className="flex items-center gap-3 border-b border-neutral-800 py-3 last:border-0">
+      <span className="w-5 shrink-0 text-right text-sm font-medium text-neutral-500">
         {rank}
       </span>
-      <p className="min-w-0 flex-1 text-sm font-medium">{caption.caption_text}</p>
-      <div className="flex shrink-0 gap-1.5">
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => vote(1)}
-          aria-pressed={myVote === 1}
-          className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
-            myVote === 1
-              ? "bg-black text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          👍 {tally.upvotes}
-        </button>
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => vote(-1)}
-          aria-pressed={myVote === -1}
-          className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
-            myVote === -1
-              ? "bg-black text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          👎 {tally.downvotes}
-        </button>
-      </div>
-      {error && <p className="basis-full text-xs text-red-600">{error}</p>}
+      <p className="min-w-0 flex-1 text-sm font-medium text-neutral-100">
+        {caption.caption_text}
+      </p>
+      <VoteButtons
+        captionId={caption.id}
+        initialMyVote={caption.myVote}
+        initialTally={caption.tally}
+        variant="leaderboard"
+      />
     </li>
   );
 }
@@ -110,55 +57,57 @@ export function ImageOfTheDay({
   };
 
   return (
-    <section className="mb-8 overflow-hidden rounded-3xl bg-gray-100 shadow-sm">
-      <div className="relative aspect-[4/3] w-full">
-        <Image
-          src={imageUrl}
-          alt=""
-          fill
-          sizes="(max-width: 640px) 100vw, 480px"
-          className="object-cover"
-        />
-        <span className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-          ✨ Image of the Day
-        </span>
+    <section className="relative flex h-full w-full shrink-0 snap-start flex-col items-center justify-center gap-3 overflow-y-auto p-6">
+      <div
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[65vmin] w-[65vmin] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{
+          background: "radial-gradient(circle, rgba(251,191,36,0.22), transparent 65%)",
+        }}
+      />
+      <span className="relative rounded-full bg-black/50 px-5 py-2 text-lg font-semibold text-amber-300 backdrop-blur-sm sm:text-xl">
+        Tonight&apos;s Headliner
+      </span>
+      <div className="relative aspect-[4/5] w-full max-w-sm max-h-[45vh] overflow-hidden rounded-3xl border-4 border-amber-400/60 bg-neutral-900 shadow-2xl">
+        <Image src={imageUrl} alt="" fill sizes="(max-width: 640px) 100vw, 384px" className="object-cover" />
       </div>
-      <div className="p-4">
-        {!hasSubmitted ? (
+
+      {!hasSubmitted ? (
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={generate}
+          className="relative rounded-full bg-amber-400 px-6 py-3 font-medium text-neutral-950 transition-colors hover:bg-amber-300 disabled:opacity-50"
+        >
+          {isPending ? "Writing…" : "🎤 Take the mic"}
+        </button>
+      ) : (
+        <p className="relative text-sm text-white">
+          You&apos;re on tonight&apos;s lineup — come back tomorrow for a new headliner.
+        </p>
+      )}
+      {error && <p className="relative text-sm text-red-400">{error}</p>}
+
+      {submissions.length > 0 && (
+        <div className="relative w-full max-w-md">
           <button
             type="button"
-            disabled={isPending}
-            onClick={generate}
-            className="w-full rounded-md bg-black px-4 py-2 font-medium text-white disabled:opacity-50"
+            onClick={() => setExpanded((e) => !e)}
+            className="mx-auto block text-sm font-medium text-white underline"
           >
-            {isPending ? "Writing…" : "🎲 Generate my caption"}
+            {expanded ? "Hide" : "Show"} crowd favorites ({submissions.length})
           </button>
-        ) : (
-          <p className="text-sm text-gray-600">
-            You&apos;re in today&apos;s leaderboard — come back tomorrow for a new photo.
-          </p>
-        )}
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-
-        {submissions.length > 0 && (
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={() => setExpanded((e) => !e)}
-              className="text-sm font-medium text-gray-700 underline"
-            >
-              {expanded ? "Hide" : "Show"} leaderboard ({submissions.length})
-            </button>
-            {expanded && (
-              <ul className="mt-2">
-                {ranked.map((caption, i) => (
-                  <LeaderboardRow key={caption.id} caption={caption} rank={i + 1} />
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-      </div>
+          {expanded && (
+            <ul className="mt-2 max-h-40 overflow-y-auto rounded-xl bg-black/40 px-3 backdrop-blur-sm">
+              {ranked.map((caption, i) => (
+                <LeaderboardRow key={caption.id} caption={caption} rank={i + 1} />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      <p className="absolute inset-x-0 bottom-3 text-center text-xs text-neutral-500">
+        Scroll for the next act ↓
+      </p>
     </section>
   );
 }

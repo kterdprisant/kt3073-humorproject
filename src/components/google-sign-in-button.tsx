@@ -16,7 +16,7 @@ export function GoogleSignInButton() {
   return (
     <button
       onClick={handleSignIn}
-      className="rounded-md border border-gray-300 px-4 py-2 font-medium hover:bg-gray-50"
+      className="rounded-md border border-neutral-700 bg-neutral-900 px-4 py-2 font-medium text-neutral-100 transition-colors hover:bg-neutral-800"
     >
       Continue with Google
     </button>

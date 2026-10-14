@@ -12,10 +12,10 @@ export default async function CompleteProfilePage() {
 
   return (
     <main className="mx-auto max-w-md p-8">
-      <h1 className="mb-2 text-3xl font-semibold">Finish setting up your profile</h1>
-      <p className="mb-6 text-gray-600">
-        Just need your name before you can continue.
-      </p>
+      <h1 className="mb-2 text-3xl font-semibold text-neutral-100">
+        Before you take the stage
+      </h1>
+      <p className="mb-6 text-neutral-400">Just need your name before you can continue.</p>
       <ProfileForm
         defaultFirstName={profile?.first_name ?? ""}
         defaultLastName={profile?.last_name ?? ""}

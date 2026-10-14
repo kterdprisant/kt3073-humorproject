@@ -102,6 +102,67 @@ export async function getCreatedCaptions(userId: string): Promise<Caption[]> {
   return attachVotesAndTallies(userId, (captions ?? []) as CaptionRow[]);
 }
 
+export type UserStats = {
+  setsCreated: number;
+  applauseGiven: number;
+  boosGiven: number;
+};
+
+/** Raw counts behind the Green Room's achievement badges. */
+export async function getUserStats(userId: string): Promise<UserStats> {
+  const supabase = await createClient();
+  const [
+    { count: setsCreated },
+    { count: applauseGiven },
+    { count: boosGiven },
+  ] = await Promise.all([
+    supabase
+      .from("captions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId),
+    supabase
+      .from("votes")
+      .select("caption_id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("value", 1),
+    supabase
+      .from("votes")
+      .select("caption_id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("value", -1),
+  ]);
+
+  return {
+    setsCreated: setsCreated ?? 0,
+    applauseGiven: applauseGiven ?? 0,
+    boosGiven: boosGiven ?? 0,
+  };
+}
+
+/** Whether any of the user's Encores out-scored the original caption they
+ * were regenerated from — the "Ratio'd" secret achievement. */
+export async function hasOutscoredEncore(userId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data: regens } = await supabase
+    .from("captions")
+    .select("id, regenerated_from_id")
+    .eq("user_id", userId)
+    .not("regenerated_from_id", "is", null);
+
+  if (!regens || regens.length === 0) return false;
+
+  const { data: tallies } = await supabase.rpc("caption_vote_tallies");
+  const scoreById = new Map(
+    ((tallies ?? []) as TallyRow[]).map((t) => [t.caption_id, t.score]),
+  );
+
+  return regens.some((r) => {
+    const childScore = scoreById.get(r.id) ?? 0;
+    const parentScore = scoreById.get(r.regenerated_from_id as string) ?? 0;
+    return childScore > parentScore;
+  });
+}
+
 /** Captions a user has voted on, most recently voted first. */
 export async function getVotedCaptions(userId: string): Promise<Caption[]> {
   const supabase = await createClient();
