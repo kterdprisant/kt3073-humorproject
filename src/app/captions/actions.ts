@@ -4,31 +4,16 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createGeminiClient, GEMINI_MODEL } from "@/lib/gemini";
+import {
+  finishCaptionRequest,
+  runPromptChain,
+  startCaptionRequest,
+} from "@/lib/prompt-chain";
 import type { Caption } from "@/lib/captions";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB
 
 export type ActionState = { error: string | null };
-
-function captionPrompt(description: string) {
-  return `Here is a description of an image: "${description}"\n\nWrite one short, funny caption for this image, in the style of a witty meme caption. Return only the caption text, nothing else — no quotes, no preamble.`;
-}
-
-// No auto-retry: the free Gemini tier is capped at 5 requests/minute, and
-// each upload already makes 2 calls — retrying would burn through that
-// quota fast and make rate-limit errors more likely, not less. Surface a
-// clear message instead and let the user retry manually.
-function describeGeminiError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  if (/"code":\s*429|RESOURCE_EXHAUSTED/i.test(message)) {
-    return "Hit the free Gemini rate limit (5 requests/minute) — wait a bit and try again.";
-  }
-  if (/"code":\s*503|UNAVAILABLE/i.test(message)) {
-    return "Gemini is temporarily overloaded — try again in a moment.";
-  }
-  return message;
-}
 
 // Expected failures are returned as { error } rather than thrown: Next.js
 // redacts thrown Server Function errors to a generic message in production
@@ -95,6 +80,12 @@ export async function uploadImageAndGenerateCaption(
     data: { publicUrl: imageUrl },
   } = storageClient.storage.from("caption-images").getPublicUrl(path);
 
+  const requestId = await startCaptionRequest(supabase, {
+    profileId: user.id,
+    imageId: null,
+    kind: manualCaption ? "manual" : "upload",
+  });
+
   let imageDescription: string;
   let captionText: string;
 
@@ -105,59 +96,53 @@ export async function uploadImageAndGenerateCaption(
     imageDescription = "(no AI description — caption entered manually)";
     captionText = manualCaption;
   } else {
-    // Prompt chain: call #1 describes the image, call #2 writes a caption
-    // from that description text alone (not the image again) — a real
-    // two-step chain, not one multimodal call doing both jobs at once.
-    const gemini = createGeminiClient();
-    try {
-      const descriptionResponse = await gemini.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { inlineData: { mimeType: image.type, data: base64 } },
-              {
-                text: "Describe this image in concrete, vivid detail: objects, people, actions, setting, mood. Note anything that could be funny or absurd. Plain prose, no preamble.",
-              },
-            ],
-          },
-        ],
-      });
-      imageDescription = (descriptionResponse.text ?? "").trim();
-      if (!imageDescription) {
-        throw new Error("Gemini returned an empty description.");
-      }
-
-      const captionResponse = await gemini.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: [
-          { role: "user", parts: [{ text: captionPrompt(imageDescription) }] },
-        ],
-      });
-      captionText = (captionResponse.text ?? "").trim();
-      if (!captionText) {
-        throw new Error("Gemini returned an empty caption.");
-      }
-    } catch (err) {
+    // Prompt chain from humor_flavor_steps (admin-managed): step 1 describes
+    // the image, later steps work from that description text alone — see
+    // src/lib/prompt-chain.ts.
+    const result = await runPromptChain(supabase, {
+      userId: user.id,
+      requestId,
+      image: { mimeType: image.type, base64 },
+    });
+    if (result.error !== null) {
       // Don't leave an orphaned upload if caption generation fails.
       await storageClient.storage.from("caption-images").remove([path]);
-      return { error: `Failed to generate a caption: ${describeGeminiError(err)}` };
+      return { error: `Failed to generate a caption: ${result.error}` };
     }
+    imageDescription = result.description;
+    captionText = result.caption;
   }
+
+  // RLS-enforced: images_insert_own requires profile_id = auth.uid().
+  // Best-effort — the caption still works off image_url without it.
+  const { data: imageRow, error: imageError } = await supabase
+    .from("images")
+    .insert({ url: imageUrl, image_description: imageDescription, profile_id: user.id })
+    .select("id")
+    .single();
+  if (imageError) console.error("images insert failed:", imageError.message);
+  const imageId = imageRow?.id ?? null;
 
   // RLS-enforced insert: captions_insert_own requires auth.uid() = user_id.
-  const { error: insertError } = await supabase.from("captions").insert({
-    user_id: user.id,
-    image_url: imageUrl,
-    image_description: imageDescription,
-    caption_text: captionText,
-  });
+  const { data: inserted, error: insertError } = await supabase
+    .from("captions")
+    .insert({
+      user_id: user.id,
+      image_url: imageUrl,
+      image_id: imageId,
+      image_description: imageDescription,
+      caption_text: captionText,
+    })
+    .select("id")
+    .single();
 
-  if (insertError) {
+  if (insertError || !inserted) {
     await storageClient.storage.from("caption-images").remove([path]);
-    return { error: `Failed to save caption: ${insertError.message}` };
+    if (imageId) await supabase.from("images").delete().eq("id", imageId);
+    return { error: `Failed to save caption: ${insertError?.message}` };
   }
+
+  await finishCaptionRequest(supabase, requestId, { captionId: inserted.id, imageId });
 
   revalidatePath("/captions");
   redirect("/captions");
@@ -232,7 +217,7 @@ export async function regenerateCaption(
   // the feed, see src/app/dashboard/page.tsx's "Your captions" section).
   const { data: source, error: sourceError } = await supabase
     .from("captions")
-    .select("image_url, image_description")
+    .select("image_url, image_id, image_description")
     .eq("id", sourceCaptionId)
     .single();
 
@@ -240,27 +225,22 @@ export async function regenerateCaption(
     return { error: "Couldn't find that image anymore." };
   }
 
+  const requestId = await startCaptionRequest(supabase, {
+    profileId: user.id,
+    imageId: source.image_id,
+    kind: "regenerate",
+  });
+
   // Reuse the stored description instead of re-sending the image — the
   // whole point of keeping image_description around: only the cheap
-  // text-only call runs here, not the vision step.
-  const gemini = createGeminiClient();
-  let captionText: string;
-  try {
-    const captionResponse = await gemini.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: captionPrompt(source.image_description) }],
-        },
-      ],
-    });
-    captionText = (captionResponse.text ?? "").trim();
-    if (!captionText) {
-      throw new Error("Gemini returned an empty caption.");
-    }
-  } catch (err) {
-    return { error: `Failed to generate a caption: ${describeGeminiError(err)}` };
+  // text-only step(s) run here, not the vision step.
+  const result = await runPromptChain(supabase, {
+    userId: user.id,
+    requestId,
+    description: source.image_description,
+  });
+  if (result.error !== null) {
+    return { error: `Failed to generate a caption: ${result.error}` };
   }
 
   // RLS-enforced insert: captions_insert_own requires auth.uid() = user_id.
@@ -271,8 +251,9 @@ export async function regenerateCaption(
     .insert({
       user_id: user.id,
       image_url: source.image_url,
+      image_id: source.image_id,
       image_description: source.image_description,
-      caption_text: captionText,
+      caption_text: result.caption,
       regenerated_from_id: sourceCaptionId,
     })
     .select("id, image_url, caption_text, user_id, created_at")
@@ -281,6 +262,11 @@ export async function regenerateCaption(
   if (insertError || !inserted) {
     return { error: `Failed to save caption: ${insertError?.message}` };
   }
+
+  await finishCaptionRequest(supabase, requestId, {
+    captionId: inserted.id,
+    imageId: source.image_id,
+  });
 
   revalidatePath("/captions");
   revalidatePath("/dashboard");
@@ -334,21 +320,30 @@ export async function generateImageOfTheDayCaption(): Promise<
     return { error: "You've already submitted a caption for today's image." };
   }
 
-  const gemini = createGeminiClient();
-  let captionText: string;
-  try {
-    const captionResponse = await gemini.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [
-        { role: "user", parts: [{ text: captionPrompt(iotd.image_description) }] },
-      ],
-    });
-    captionText = (captionResponse.text ?? "").trim();
-    if (!captionText) {
-      throw new Error("Gemini returned an empty caption.");
-    }
-  } catch (err) {
-    return { error: `Failed to generate a caption: ${describeGeminiError(err)}` };
+  // The RPC only returns the URL; any caption on that image carries its
+  // image_id (images itself is only readable by its uploader).
+  const { data: sameImage } = await supabase
+    .from("captions")
+    .select("image_id")
+    .eq("image_url", iotd.image_url)
+    .not("image_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+  const imageId: string | null = sameImage?.image_id ?? null;
+
+  const requestId = await startCaptionRequest(supabase, {
+    profileId: user.id,
+    imageId,
+    kind: "iotd",
+  });
+
+  const result = await runPromptChain(supabase, {
+    userId: user.id,
+    requestId,
+    description: iotd.image_description,
+  });
+  if (result.error !== null) {
+    return { error: `Failed to generate a caption: ${result.error}` };
   }
 
   const { data: inserted, error: insertError } = await supabase
@@ -356,8 +351,9 @@ export async function generateImageOfTheDayCaption(): Promise<
     .insert({
       user_id: user.id,
       image_url: iotd.image_url,
+      image_id: imageId,
       image_description: iotd.image_description,
-      caption_text: captionText,
+      caption_text: result.caption,
       iotd_date: iotd.pick_date,
     })
     .select("id, image_url, caption_text, user_id, created_at")
@@ -370,6 +366,8 @@ export async function generateImageOfTheDayCaption(): Promise<
       error: "Failed to save your caption — you may have already submitted one today.",
     };
   }
+
+  await finishCaptionRequest(supabase, requestId, { captionId: inserted.id, imageId });
 
   revalidatePath("/captions");
 
